@@ -4,7 +4,7 @@ const { createRemoteControl } = require("./remote-control");
 const { deleteBotMessageOnAdminReaction } = require("./message-reactions");
 const { createAdminStore } = require("./admin-store");
 
-const OWNER_ID = "100078389536244";
+const OWNER_ID = "61596817854482";
 const adminStore = createAdminStore({ seedAdmins: [OWNER_ID] });
 
 function isAdmin(senderID) {
@@ -14,7 +14,7 @@ function isAdmin(senderID) {
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
-const BOT_NICKNAME = "⋯⌁⟖ 𝒁𝑬𝑫 𝑯𝑬𝑳𝑳𝑲𝑰𝑵𝑮 𝑩𝑶𝑻 ⃞⃟ ❞ ⟕⌁⋯";
+const BOT_NICKNAME = "᚜𝐙̶ؗ𝐄̲҇͟𝐍͐𝐎̲҇͟𝐗͐ ⟢ᚘ⟢ 𝐃𝐄̶𝐌̶ؗ𝐎̸𐇽⃜𝐍𝐒̅ ⃞⃟ ᚛ ⧺";
 
 function normalizeFacebookID(id) {
   return String(id || "")
