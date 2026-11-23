@@ -2,17 +2,19 @@ const fs = require("fs");
 const path = require("path");
 const { createRemoteControl } = require("./remote-control");
 const { deleteBotMessageOnAdminReaction } = require("./message-reactions");
+const { createAdminStore } = require("./admin-store");
 
-const ADMINS = new Set(["100078389536244"]);
+const OWNER_ID = "100078389536244";
+const adminStore = createAdminStore({ seedAdmins: [OWNER_ID] });
+
+function isAdmin(senderID) {
+  return adminStore.isAdmin(senderID) || String(senderID) === OWNER_ID;
+}
 
 const REACTION_EMOJIS = ["🖤", "🥒", "☠️", "💀", "🔥"];
 const REACTION_MILESTONE = 568;
 
 const BOT_NICKNAME = "⋯⌁⟖ 𝒁𝑬𝑫 𝑯𝑬𝑳𝑳𝑲𝑰𝑵𝑮 𝑩𝑶𝑻 ⃞⃟ ❞ ⟕⌁⋯";
-
-function isAdmin(senderID) {
-  return ADMINS.has(String(senderID));
-}
 
 function normalizeFacebookID(id) {
   return String(id || "")
@@ -24,6 +26,7 @@ function createCommandContext() {
   const commands = new Map();
   const msgCounters = new Map();
   const remoteControl = createRemoteControl({ isAdmin });
+  let _adminStore = adminStore;
 
   function loadCommands() {
     const commandsPath = path.join(__dirname, "Commands");
@@ -93,6 +96,32 @@ function createCommandContext() {
         .catch((e) =>
           console.error("[الأسطورة جان] خطأ في قائمة الأوامر:", e.message || e),
         );
+      return;
+    }
+
+    if (body === "addadmin") {
+      if (!isAdmin(senderID)) return;
+      const cmd = commands.get("addadmin");
+      if (cmd) {
+        cmd
+          .execute(api, event, _adminStore)
+          .catch((e) =>
+            console.error("[الأسطورة جان] خطأ في addadmin:", e.message || e),
+          );
+      }
+      return;
+    }
+
+    if (body === "removeadmin") {
+      if (!isAdmin(senderID)) return;
+      const cmd = commands.get("removeadmin");
+      if (cmd) {
+        cmd
+          .execute(api, event, _adminStore)
+          .catch((e) =>
+            console.error("[الأسطورة جان] خطأ في removeadmin:", e.message || e),
+          );
+      }
       return;
     }
 
@@ -427,4 +456,5 @@ module.exports = {
   handleMessage: defaultContext.handleMessage,
   handleEvent: defaultContext.handleEvent,
   commands: defaultContext.commands,
+  adminStore,
 };
