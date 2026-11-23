@@ -194,6 +194,31 @@ function escapeRegExp(text) {
   return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Parse a leading bot ID from the message body. If the message starts with a
+// known bot ID followed by whitespace + a command, returns { botId, cleanBody }.
+// Otherwise returns null so the message flows to all bots as usual.
+function parseIDPrefix(event, allBotIds) {
+  if (!event || !event.body) return null;
+  const body = String(event.body).trim();
+  if (!body) return null;
+
+  // The ID is the first token; the rest is the actual command.
+  const spaceIdx = body.search(/\s/u);
+  if (spaceIdx === -1) return null; // no command after ID
+
+  const rawId = body.slice(0, spaceIdx).trim();
+  const rest = body.slice(spaceIdx).trim();
+  if (!rawId || !rest) return null;
+
+  const normalizedRaw = normalizeFacebookID(rawId);
+  if (!normalizedRaw) return null;
+
+  const match = allBotIds.find((bid) => normalizeFacebookID(bid) === normalizedRaw);
+  if (!match) return null;
+
+  return { botId: match, cleanBody: rest };
+}
+
 function stripMentionFromEvent(event, botID) {
   if (!event || !event.mentions || typeof event.mentions !== "object") return event;
   const mentions = { ...event.mentions };
@@ -248,7 +273,25 @@ function createAccountsEngine({ store, onMessage, onEvent, log, loginFn, context
     const botID = typeof api.getCurrentUserID === "function"
       ? String(api.getCurrentUserID() || "")
       : String(account.id || "");
-    const anyMentioned = isAnyBotMentioned(event, getAllBotIds());
+
+    const allBotIds = getAllBotIds();
+
+    // ID-prefix routing: if the message starts with a bot's ID, only that bot executes.
+    const idPrefix = parseIDPrefix(event, allBotIds);
+    if (idPrefix) {
+      if (normalizeFacebookID(idPrefix.botId) !== normalizeFacebookID(botID)) return false;
+      const cleanEvent = { ...event, body: idPrefix.cleanBody };
+      Promise.resolve(entry.context.handleMessage(api, cleanEvent)).catch((error) => {
+        log.error("messages", "خطأ في معالجة رسالة حساب", {
+          id: account.id,
+          message: error.message || error,
+        });
+      });
+      return true;
+    }
+
+    // Mention routing: if a bot is @-mentioned, only that bot executes.
+    const anyMentioned = isAnyBotMentioned(event, allBotIds);
     if (anyMentioned && !isMentioned(event, botID)) return false;
 
     const hasMentions = event.mentions && Object.keys(event.mentions).length > 0;
@@ -355,6 +398,7 @@ function createAccountsEngine({ store, onMessage, onEvent, log, loginFn, context
     isAnyBotMentioned,
     isMentioned,
     stripMentionFromEvent,
+    parseIDPrefix,
     dispatchMessage,
     accounts,
   };

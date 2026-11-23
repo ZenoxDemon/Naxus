@@ -472,6 +472,198 @@ test("isMentioned handles fbid: prefix and plain IDs symmetrically", () => {
   assert.equal(engine.isMentioned(null, "123"), false);
 });
 
+test("ID-prefix routing: '100 قصف' — only bot 100 executes, bot 200 silent", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id1",
+    body: "100 قصف",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  assert.equal(executed.length, 1, "only bot 100 should execute");
+  assert.equal(executed[0].botId, "100");
+  assert.equal(executed[0].name, "قصف");
+  assert.equal(executed[0].body, "قصف", "ID prefix must be stripped from body");
+  assert.equal(sentMessages.filter((m) => m.botId === "200").length, 0, "bot 200 must not reply");
+});
+
+test("ID-prefix routing: '200 تثبيت' — only bot 200 executes تثبيت", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id2",
+    body: "200 تثبيت",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  assert.equal(executed.length, 1, "only bot 200 should execute");
+  assert.equal(executed[0].botId, "200");
+  assert.equal(executed[0].name, "تثبيت");
+  assert.equal(executed[0].body, "تثبيت");
+  assert.equal(sentMessages.filter((m) => m.botId === "100").length, 0, "bot 100 must not reply");
+});
+
+test("ID-prefix routing: '100 اوامر' — only bot 100 shows the commands menu", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id3",
+    body: "100 اوامر",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  const bot100Replies = sentMessages.filter((m) => m.botId === "100");
+  const bot200Replies = sentMessages.filter((m) => m.botId === "200");
+  assert.ok(bot100Replies.length >= 1, "bot 100 should reply with menu");
+  assert.equal(bot200Replies.length, 0, "bot 200 must not reply");
+});
+
+test("ID-prefix routing: command without ID still reaches all bots", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id4",
+    body: "قصف",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  assert.equal(executed.length, 2, "both bots execute when no ID prefix");
+  assert.deepEqual(executed.map((e) => e.botId).sort(), ["100", "200"]);
+});
+
+test("ID-prefix routing: unknown ID prefix does not block — all bots execute the full body", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners, received } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id5",
+    body: "99999 قصف",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  assert.equal(received.length, 2, "both bots should receive the message");
+  assert.ok(received.every((r) => r.body === "99999 قصف"), "body must be unchanged when ID is unknown");
+});
+
+test("ID-prefix routing: '100 كاتش 12345' — args preserved after ID strip", async () => {
+  const executed = [];
+  const sentMessages = [];
+  const { engine, listeners } = setupEngine(
+    [
+      { id: "100", name: "بوت أ", enabled: true },
+      { id: "200", name: "بوت ب", enabled: true },
+    ],
+    (account, event) => engine.dispatchMessage(account, event),
+    { executed, sentMessages },
+  );
+
+  await engine.startAll();
+  await settle();
+
+  deliverToAll(listeners, {
+    type: "message",
+    threadID: "grp1",
+    messageID: "id6",
+    body: "100 كاتش 12345",
+    senderID: "100078389536244",
+  });
+  await settle(300);
+
+  assert.equal(executed.length, 1);
+  assert.equal(executed[0].botId, "100");
+  assert.equal(executed[0].name, "كاتش");
+  assert.equal(executed[0].body, "كاتش 12345");
+});
+
+test("parseIDPrefix returns null for plain command without ID", () => {
+  const engine = createAccountsEngine({
+    store: fakeStore([]),
+    onMessage: () => {},
+    onEvent: () => {},
+    log: silentLog,
+    loginFn: () => {},
+  });
+
+  assert.equal(engine.parseIDPrefix({ body: "قصف" }, ["100", "200"]), null);
+  assert.equal(engine.parseIDPrefix({ body: "" }, ["100", "200"]), null);
+  assert.equal(engine.parseIDPrefix(null, ["100", "200"]), null);
+});
+
 test.after(() => {
   setTimeout(() => process.exit(0), 100);
 });
